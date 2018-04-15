@@ -60,7 +60,7 @@
   - name: Install OpenShift utilities
     yum: state=present name=atomic-openshift-utils
     
-    - name: Install OpenShift excluder packages
+  - name: Install OpenShift excluder packages
     yum: state=present name={{ item }}
     with_items:
     - atomic-openshift-excluder
@@ -89,5 +89,3 @@
     
   - name: Start docker service
     service: name=docker enabled=yes state=started
-    
-  
