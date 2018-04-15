@@ -1,1 +1,92 @@
+---
+- hosts: nodes
 
+  vars:
+    docker_drive: ""
+    rhsm_username: ""
+    rhsm_password: ""
+    rhsm_pool_id: ""
+    
+  tasks:
+  - name: Ensure SELINUX is enabled
+    lineinfile:
+      dest=/etc/selinux/config
+      regexp=^SELINUX=
+      line=SELINUX=enforcing
+
+  - name: Ensure SELINUX is using targeted policy
+    lineinfile:
+      dest=/etc/selinux/config
+      regexp=^SELINUXTYPE=
+      line=SELINUXTYPE=targeted
+
+  - name: Register with RHSM
+    command: /usr/bin/subscription-manager register --username {{ rhsm_username }} --password {{ rhsm_password }}
+  
+  - name: Attach to a Pool with RHSM
+    command: /usr/bin/subscription-manager attach --pool={{ rhsm_pool_id }} 
+
+  - name: Disable RHSM repositories
+    command: /usr/bin/subscription-manager repos --disable="*"
+
+  - name: Disable all yum repositories
+    command: /usr/bin/yum-config-manager --disable \*
+    
+  - name: Enable OCP required repositories
+    command: /usr/bin/subscription-manager repos --enable="{{ item }}"
+    with_items:
+    - rhel-7-server-rpms
+    - rhel-7-server-extras-rpms
+    - rhel-7-server-ose-3.7-rpms
+    - rhel-7-fast-datapath-rpms
+    
+  - name: Install required base packages
+    yum: state=present name={{ item }}
+    with_items:
+    - lvm2
+    - NetworkManager
+    - wget
+    - git
+    - net-tools
+    - bind-utils
+    - iptables-services
+    - bridge-utils
+    - bash-completion
+    - kexec-tools 
+    - sos 
+    - psacct
+    
+  - name: Install OpenShift utilities
+    yum: state=present name=atomic-openshift-utils
+    
+    - name: Install OpenShift excluder packages
+    yum: state=present name={{ item }}
+    with_items:
+    - atomic-openshift-excluder
+    - atomic-openshift-docker-excluder
+
+  - name: Disable OpenShift excludes for install
+    command: /usr/sbin/atomic-openshift-excluder unexclude
+
+  - name: Start NetworkManager service
+    service: name=NetworkManager enabled=yes state=started
+
+  - name: Install Docker package
+    yum: name=docker state=latest
+    
+  - name: Create docker-storage-setup config
+    copy:
+      dest=/etc/sysconfig/docker-storage-setup
+      owner=root
+      group=root
+      mode=0644
+      content="DEVS=/dev/{{ docker_drive }}\nVG=docker-vg\n"
+      
+  - name: Create docker storage pool
+    command: /usr/bin/docker-storage-setup
+    when: lvm_logical_vols.stdout.find('docker-pool') == -1
+    
+  - name: Start docker service
+    service: name=docker enabled=yes state=started
+    
+  
