@@ -83,7 +83,12 @@
       group=root
       mode=0644
       content="DEVS=/dev/{{ docker_drive }}\nVG=docker-vg\n"
-      
+  
+  - name: Get LVM logical volume list
+    command: /usr/sbin/lvs --noheadings
+    register: lvm_logical_vols
+    changed_when: False
+    
   - name: Create docker storage pool
     command: /usr/bin/docker-storage-setup
     when: lvm_logical_vols.stdout.find('docker-pool') == -1
